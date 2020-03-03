@@ -1,0 +1,108 @@
+<#noparse>server:
+  port: 9500
+spring:
+  datasource:
+      type: com.alibaba.druid.pool.DruidDataSource
+      url: jdbc:mysql://192.168.62.244:3306/ms-order?useSSL=false&characterEncoding=utf-8
+      username: root
+      password: YYJNo$QsaaSjgb8U3JoigB
+      driver-class-name: com.mysql.jdbc.Driver
+      minIdle: 1
+      maxActive: 20
+      initialSize: 1
+      maxWait: 60000
+      timeBetweenEvictionRunsMillis: 60000
+      minEvictableIdleTimeMillis: 25200000
+      removeAbandoned: true
+      removeAbandonedTimeout: 1800
+      validationQuery: select 'x'
+      testWhileIdle: true
+      testOnBorrow: false
+      testOnReturn: false
+  redis:
+    database: 0
+    host: 39.104.28.40
+    port: 6379
+    password: YYJNo$QsaaSjgb8U3JoigB
+  application:
+    name: server-a
+    strategy:
+      rpc:
+        intercept:
+          # 启动和关闭用户自定义和编程灰度路由策略的时候，对RPC方式的调用拦截。缺失则默认为false
+          enabled: true
+      scan:
+        # 用户自定义和编程灰度路由策略的时候，对RPC方式调用拦截的时候，需要指定对业务Controller类的扫描路径，以便传递上下文对象。该项配置只对服务有效，对网关无效
+        packages: ${basepackage}.${appName}
+      rest:
+        intercept:
+          # 启动和关闭用户自定义和编程灰度路由策略的时候，对REST方式的调用拦截。缺失则默认为false
+          enabled: true
+      request:
+          # 用户自定义和编程灰度路由策略的时候，对REST方式调用拦截的时候（支持Feign或者RestTemplate调用），需要把来自外部的指定Header参数传递到服务里，如果多个用“;”分隔，不允许出现空格。该项配置只对服务有效，对网关无效
+        headers: token
+      intercept:
+        log:
+          # 启动和关闭用户自定义和编程灰度路由策略的时候日志打印，注意每调用一次都会打印一次，会对性能有所影响，建议压测环境和生产环境关闭。缺失则默认为false
+          print: true
+  cloud:
+    inetutils:
+      ignoredInterfaces: ['VMware.*','veth.*','docker0','flannel0']
+    nacos:
+      config:
+        server-addr: localhost:8848
+      discovery:
+        server-addr: localhost:8848
+        metadata:
+          group: world-koala
+          version: 1.1
+          region: dev
+    sentinel:
+      eager: true
+      transport:
+        dashboard: localhost:8888
+      datasource:
+#      限流
+        ds1:
+          nacos:
+            server-addr: localhost:8848
+            dataId: ${spring.application.name}-flow-rules
+            data-type: json
+            rule-type: flow
+#      降级、熔断
+        ds2:
+          nacos:
+            server-addr: localhost:8848
+            dataId: ${spring.application.name}-degrade-rules
+            data-type: json
+            rule-type: degrade
+
+nacos:
+  server-addr : localhost:8848
+
+feign:
+  httpclient:
+    enabled: true
+  hystrix:
+    enabled: false
+logging:
+  config: classpath:logback-spring.xml
+  path: /opt/logs/scdemo/serverb/${spring.application.name}
+mybatis:
+  config-location:  classpath:/mybatis-config.xml
+  mapper-locations: classpath:/mybatis/*.xml
+
+swagger:
+#  开启当前服务的 swagger
+  enabled: true
+#  设置当前服务扫描的包路径
+  base:
+</#noparse>
+    package: ${basepackage}.web.controller.admin,${basepackage}.web.controller.mobile,${basepackage}.web.controller.web
+<#noparse>
+#  不显示nepxion discovery的swagger信息，如果要显示的话，需要将base.package配置到 service下一级
+  service:
+    enabled: false
+</#noparse>
+
+

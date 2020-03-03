@@ -1,0 +1,199 @@
+<#include "/include/base.include"/>
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="${basepackage}.dao.${className}Dao">
+    <resultMap id="${className}Map" type="${basepackage}.domain.${className}">
+        <#list table.columns as column>
+        	<#if column.columnNameLowerCase == table.pkColumn.columnNameLowerCase>
+    	<id property="id" column="${column.sqlName}"/>
+        	<#else>
+    	<result property="${column.columnNameFirstLower}" column="${column.sqlName}"/>
+        	</#if>
+        </#list>
+    </resultMap>
+
+
+    <!-- templete 所有查询列 -->
+    <sql id="QUERY_COLUMN_LIST">
+        <#list table.columns as column><#if column_index != 0>,</#if>`${column.sqlName}`</#list>
+    </sql>
+
+    <!-- templete 查询列来源表-->
+    <sql id="QUERY_FROM_TABLE"><![CDATA[FROM ${table.sqlName}]]></sql>
+
+    <!-- 全部条件(更多功能可以通过queryData扩展实现)  -->
+    <sql id="QUERY_WHERE_CLAUSE">
+        <where>
+        <#list table.columns as column>
+            <if test="${column.columnNameFirstLower} != null">
+                and `${column.sqlName}` = <#noparse>#{</#noparse>${column.columnNameFirstLower}<#noparse>}</#noparse>
+            </if>
+        </#list>
+        </where>
+    </sql>
+
+    <!-- 智能排序与分页 -->
+    <sql id="QUERY_ORDER_LIMIT_CONDITION">
+    <#noparse>
+        <choose>
+		   <when test="orderField != null and orderField != ''">
+		        <choose>
+		            <when test="orderFieldType != null and orderFieldType != ''">
+		                <![CDATA[ORDER BY ${orderField} ${orderFieldType}]]>
+		            </when>
+		            <otherwise>
+		                <![CDATA[ORDER BY ${orderField} desc]]>
+		            </otherwise>
+		        </choose>
+		   </when>
+		   <otherwise>
+		        <![CDATA[ORDER by id desc]]>
+		   </otherwise>
+		</choose>
+        <if test="startIndex != null and startIndex &gt;= 0 and pageSize != null and pageSize &gt; 0"><![CDATA[LIMIT #{startIndex},#{pageSize}]]></if>
+    </#noparse>
+    </sql>
+
+    <!-- 更新列字段,只要不为NULL则更新,除开主键列 -->
+    <sql id="UPDATE_COLUMN_SET">
+        <set>
+        <#list table.columns as column>
+         <#if column.columnNameLowerCase != table.pkColumn.columnNameLowerCase>
+          <#if    column.columnNameLowerCase == p_create  || column.columnNameLowerCase == p_update>
+        	<#if column.columnNameLowerCase == p_update>
+   			`${column.sqlName}`=now()<#if column_has_next >,</#if>
+            </#if>
+         <#else>
+	        <if test="${column.columnNameFirstLower} != null">
+           		`${column.sqlName}`=<#noparse>#{</#noparse>${column.columnNameFirstLower}<#noparse>}</#noparse><#if column_has_next >,</#if>
+	        </if>
+          </#if>
+         </#if>
+        </#list>
+        </set>
+    </sql>
+
+    <insert id="insert" parameterType="${basepackage}.domain.${className}" useGeneratedKeys="true" keyProperty="id">
+    <selectKey keyProperty="id" resultType="long" order="AFTER">
+        SELECT LAST_INSERT_ID();
+    </selectKey>
+    <![CDATA[
+            INSERT INTO ${table.sqlName}(
+            <#list table.columns as column>
+                <#if column.columnNameLowerCase != table.pkColumn.columnNameLowerCase>
+                    <#if column.columnNameLowerCase == p_del>
+                    <#else>
+                        `${column.sqlName}`<#if column_index != table.columns?size -2 >,</#if>
+                    </#if>
+                </#if>
+            </#list>
+            ) VALUES(
+            <#list table.columns as column>
+                <#if column.columnNameLowerCase != table.pkColumn.columnNameLowerCase>
+                    <#if column.columnNameLowerCase == p_del>
+                    <#elseif column.columnNameLowerCase == p_create
+                        || column.columnNameLowerCase == p_update>
+                            now()<#if column_index != table.columns?size-2 >,</#if>
+                    <#else>
+                        <#noparse>#{</#noparse>${column.columnNameFirstLower}<#noparse>}</#noparse><#if column_index != table.columns?size-2 >,</#if>
+                    </#if>
+                </#if>
+            </#list>
+            )
+    ]]>
+    </insert>
+
+    <insert id="batchInsert">
+    INSERT INTO ${table.sqlName}(
+    <#list table.columns as column>
+    <#if column.columnNameLowerCase != table.pkColumn.columnNameLowerCase>
+    <#if column.columnNameLowerCase == table.pkColumn.columnNameLowerCase || column.columnNameLowerCase == p_del>
+    <#else>
+    `${column.sqlName}`<#if column_index != table.columns?size-2 >,</#if>
+            </#if>
+            </#if>
+            </#list>
+            ) VALUES
+            <foreach collection="list" item="item" index="index" separator=",">
+            (
+            <#list table.columns as column>
+            <#if column.columnNameLowerCase != table.pkColumn.columnNameLowerCase>
+            <#if column.columnNameLowerCase == table.pkColumn.columnNameLowerCase
+            || column.columnNameLowerCase == p_create
+            || column.columnNameLowerCase == p_update
+            || column.columnNameLowerCase == p_del
+            >
+            <#if column.columnNameLowerCase == p_create || column.columnNameLowerCase == p_update>
+            now()<#if column_index != table.columns?size-2 >,</#if>
+                    </#if>
+            <#else>
+            <#noparse>#{item.</#noparse>${column.columnNameFirstLower}<#noparse>}</#noparse><#if column_index != table.columns?size-2 >,</#if>
+                    </#if>
+                    </#if>
+                    </#list>
+            )
+            </foreach>
+    </insert>
+
+    <!-- 返回插入的编号,在事务开启状态下有效 -->
+    <select id="lastSequence" resultType="int"><![CDATA[SELECT LAST_INSERT_ID() AS id]]></select>
+
+    <!-- 删除记录,主键IN(array) -->
+    <delete id="del" parameterType="java.lang.reflect.Array" >
+        UPDATE ${table.sqlName} set is_delete = 1
+        WHERE id IN
+        <foreach collection="array" item="id" open="(" separator="," close=")">
+            <#noparse>#{id}</#noparse>
+        </foreach>
+    </delete>
+
+    <!-- 修改记录通过主键 -->
+    <update id="update" parameterType="${basepackage}.domain.${className}" >
+        UPDATE ${table.sqlName}
+        <include refid="UPDATE_COLUMN_SET"/>
+        <#noparse>WHERE id = #{id}</#noparse>
+    </update>
+
+    <!-- 查询,通过主键IN(array) -->
+    <select id="get" parameterType="Long"  resultMap="${className}Map">
+    <#noparse>
+        SELECT
+        <include refid="QUERY_COLUMN_LIST"/>
+        <include refid="QUERY_FROM_TABLE"/>
+        WHERE
+        id = #{id}
+    </#noparse>
+    </select>
+
+     <!-- 查询,通过主键IN(array) -->
+     <select id="batchGet" parameterType="java.lang.reflect.Array"  resultMap="${className}Map">
+         <![CDATA[SELECT]]>
+         <include refid="QUERY_COLUMN_LIST"/>
+         <include refid="QUERY_FROM_TABLE"/>
+         <![CDATA[WHERE id IN]]>
+         <foreach collection="array" item="id" open="(" separator="," close=")">
+             <#noparse><![CDATA[#{id}]]></#noparse>
+         </foreach>
+     </select>
+
+
+    <!-- 查询,通过条件 -->
+    <select id="list" parameterType="${basepackage}.domain.${className}" resultMap="${className}Map">
+        <![CDATA[SELECT]]>
+        <include refid="QUERY_COLUMN_LIST"/>
+        <include refid="QUERY_FROM_TABLE"/>
+        <include refid="QUERY_WHERE_CLAUSE"/>
+        <include refid="QUERY_ORDER_LIMIT_CONDITION"/>
+    </select>
+
+    <!-- 总数查询,通过条件 -->
+    <select id="listCount" parameterType="${basepackage}.domain.${className}" resultType="int">
+        <![CDATA[SELECT COUNT(id) AS dataCount]]>
+        <include refid="QUERY_FROM_TABLE"/>
+        <include refid="QUERY_WHERE_CLAUSE"/>
+    </select>
+
+    <!-- 其它SQL语句 -->
+
+
+</mapper>

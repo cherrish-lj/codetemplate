@@ -1,0 +1,27 @@
+#target/
+target/
+
+# IDEA #
+.idea/
+*.iml
+
+# Eclipse #
+.settings/
+.classpath
+.project
+
+# Log #
+logs/
+*.log%
+
+#mac
+.DS_Store
+
+#svn
+.svn
+LOG_PATH_IS_UNDEFINED/info.log
+agr-mgr/LOG_PATH_IS_UNDEFINED/info.log
+
+/ssoClient.log
+/agr-mgr.iml
+/tmp/template/generator_error.log
